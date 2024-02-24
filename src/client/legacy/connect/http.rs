@@ -108,19 +108,20 @@ impl TcpKeepaliveConfig {
         }
     }
 
-    #[cfg(not(any(target_os = "openbsd", target_os = "redox", target_os = "solaris")))]
+    #[cfg(not(any(target_os = "openbsd", target_os = "hermit", target_os = "redox", target_os = "solaris")))]
     fn ka_with_interval(ka: TcpKeepalive, interval: Duration, dirty: &mut bool) -> TcpKeepalive {
         *dirty = true;
         ka.with_interval(interval)
     }
 
-    #[cfg(any(target_os = "openbsd", target_os = "redox", target_os = "solaris"))]
+    #[cfg(any(target_os = "openbsd", target_os = "hermit", target_os = "redox", target_os = "solaris"))]
     fn ka_with_interval(ka: TcpKeepalive, _: Duration, _: &mut bool) -> TcpKeepalive {
         ka // no-op as keepalive interval is not supported on this platform
     }
 
     #[cfg(not(any(
         target_os = "openbsd",
+        target_os = "hermit",
         target_os = "redox",
         target_os = "solaris",
         target_os = "windows"
@@ -132,6 +133,7 @@ impl TcpKeepaliveConfig {
 
     #[cfg(any(
         target_os = "openbsd",
+        target_os = "hermit",
         target_os = "redox",
         target_os = "solaris",
         target_os = "windows"
@@ -712,13 +714,16 @@ fn connect(
     )
     .map_err(ConnectError::m("tcp bind local error"))?;
 
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "hermit"))]
     let socket = unsafe {
         // Safety: `from_raw_fd` is only safe to call if ownership of the raw
         // file descriptor is transferred. Since we call `into_raw_fd` on the
         // socket2 socket, it gives up ownership of the fd and will not close
         // it, so this is safe.
+        #[cfg(unix)]
         use std::os::unix::io::{FromRawFd, IntoRawFd};
+        #[cfg(target_os = "hermit")]
+        use std::os::hermit::io::{FromRawFd, IntoRawFd};
         TcpSocket::from_raw_fd(socket.into_raw_fd())
     };
     #[cfg(windows)]
